@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sai pra lá! Aedes Egipty e Schistosoma mansoni</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(160deg, #fff8e1, #e8f5e9);
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: max(8px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+      touch-action: manipulation;
+    }
+
+    /* Coluna única, proporção de celular (9:16) — também centralizada no desktop */
+    #app { max-width: 460px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── Título ── */
+    #titulo-box { text-align: center; padding-top: 2px; }
+    #titulo-box h1 { color: #e65100; font-size: 21px; line-height: 1.2; }
+    #titulo-box .sub { font-size: 14px; font-weight: bold; color: #2e7d32; margin-top: 2px; }
+    #titulo-box .pibid { font-size: 11px; color: #777; margin-top: 1px; }
+
+    /* ── Painel: tempo | pergunta n/N | acertos ── */
+    #painel { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: 8px; }
+    #timer-box, #placar-box {
+      background: #fff; border-radius: 12px; padding: 6px 8px; text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    #timer-box  { border: 2px solid #2196f3; }
+    #placar-box { border: 2px solid #43a047; }
+    #timer-box h3, #placar-box h3 { font-size: 12px; color: #555; margin-bottom: 2px; }
+    #timer-display { font-size: 30px; font-weight: bold; color: #1565c0; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    #timer-display.danger { color: #d32f2f; animation: pulse 0.6s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    #pts { font-size: 30px; font-weight: bold; color: #2e7d32; line-height: 1.1; }
+    #aviso-vez {
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      font-size: 12px; font-weight: bold; color: #1a237e; max-width: 80px; line-height: 1.25;
+    }
+
+    /* ── Área do jogo ── */
+    #game-area {
+      background: #fff; border-radius: 16px; padding: 12px 12px 14px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+    #pergunta {
+      font-size: 17px; font-weight: bold; color: #333; text-align: center;
+      line-height: 1.3; min-height: 66px; display: flex; align-items: center; justify-content: center;
+    }
+
+    #status { display: flex; flex-direction: column; align-items: center; margin: 4px 0 6px; }
+    #cena-svg { width: 100%; max-width: 330px; height: auto; overflow: visible; }
+    #vidas { font-size: 19px; letter-spacing: 2px; margin-top: 2px; }
+
+    @keyframes bater { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(0.4)} }
+    #mosquito-asas { animation: bater 0.12s infinite; transform-box: fill-box; transform-origin: center bottom; }
+
+    /* palavra em casinhas que se ajustam à largura da tela */
+    #palavra { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; min-height: 40px; margin: 6px 0 4px; }
+    .slot {
+      flex: 1 1 0; min-width: 0; max-width: 30px; height: 36px;
+      border-bottom: 3px solid #1a237e; text-align: center;
+      font-size: 22px; font-weight: bold; color: #1a237e; line-height: 36px;
+    }
+    .slot.espaco { border-bottom-color: transparent; }
+
+    #mensagem {
+      font-size: 16px; font-weight: bold; text-align: center;
+      min-height: 40px; display: flex; align-items: center; justify-content: center; margin: 0 0 4px; line-height: 1.25;
+    }
+
+    /* teclado: 7 colunas, alvos de toque grandes */
+    .teclado { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 10px; }
+    .teclado button {
+      flex: 0 0 calc((100% - 36px) / 7); height: 46px;
+      font-size: 17px; font-weight: bold; border-radius: 9px;
+      border: 2px solid #ffcc80; background: #fff3e0; cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .teclado button:active:not(:disabled) { background: #ffe0b2; transform: scale(0.94); }
+    .teclado button:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+    #controles { display: flex; gap: 8px; }
+    #controles button {
+      height: 50px; border: none; border-radius: 11px; cursor: pointer;
+      font-weight: bold; font-size: 15px; color: #fff;
+    }
+    #btn-nova  { flex: 2; background: #43a047; }
+    #btn-nova:active { background: #2e7d32; }
+    #btn-reset { flex: 1; background: #ef5350; font-size: 13px !important; }
+    #btn-reset:active { background: #c62828; }
+
+    /* ── Tela inicial ── */
+    #overlay-inicio {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center; z-index: 999; padding: 12px;
+    }
+    #overlay-inicio .card {
+      background: #fff; border-radius: 18px; padding: 24px 22px; text-align: center;
+      max-width: 400px; width: 100%; max-height: 92vh; overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    #overlay-inicio h2 { color: #e65100; font-size: 22px; margin-bottom: 6px; }
+    #overlay-inicio h3 { color: #1565c0; font-size: 15px; margin-bottom: 10px; }
+    #overlay-inicio p  { color: #555; font-size: 14px; line-height: 1.45; margin-bottom: 18px; }
+    #btn-comecar {
+      width: 100%; padding: 14px; font-size: 18px; background: #e65100; color: #fff;
+      border: none; border-radius: 12px; cursor: pointer; font-weight: bold;
+    }
+    #btn-comecar:active { background: #bf360c; }
+
+    footer { text-align: center; font-size: 11px; color: #999; padding: 2px 6px; }
+
+    /* telas mais baixas (a maioria dos celulares): compacta para caber com pouca rolagem */
+    @media (max-height: 780px) {
+      #app { gap: 6px; }
+      #titulo-box h1 { font-size: 19px; }
+      #titulo-box .pibid { display: none; }
+      #timer-display, #pts { font-size: 26px; }
+      #game-area { padding: 8px 10px 10px; }
+      #pergunta { min-height: 58px; font-size: 16px; }
+      #cena-svg { max-width: 270px; }
+      #vidas { font-size: 16px; }
+      #palavra { margin: 2px 0; }
+      .slot { height: 32px; line-height: 32px; font-size: 20px; }
+      #mensagem { font-size: 15px; min-height: 36px; }
+      .teclado { gap: 5px; margin-bottom: 8px; }
+      .teclado button { flex-basis: calc((100% - 30px) / 7); height: 40px; font-size: 16px; }
+      #controles button { height: 44px; }
+      footer { font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="overlay-inicio">
+  <div class="card">
+    <h2>🦟 Sai pra lá! Aedes Egipty e Schistosoma mansoni</h2>
+    <h3>Zoologia dos Invertebrados</h3>
+    <p>Responda o máximo de perguntas que conseguir! Cada palavra certa vale <strong>1 ponto</strong>.<br>
+       Você tem <strong>50 segundos</strong> por pergunta, e o tempo começa sozinho.<br>
+       A cada erro o mosquito (perguntas do Aedes) ou o caracol (perguntas do Schistosoma) se aproxima… Erre demais e leva a picada ou a gosma! 🦟🐌<br>
+       Nenhuma pergunta se repete.</p>
+    <button id="btn-comecar" onclick="comecarJogo()">▶ Começar o Jogo</button>
+  </div>
+</div>
+
+<div id="app">
+  <header id="titulo-box">
+    <h1>🦟 Sai pra lá! Aedes Egipty e Schistosoma mansoni 🐌</h1>
+    <div class="sub">Zoologia dos Invertebrados</div>
+    <div class="pibid">PIBID IFbaiano Valença – CEJCS</div>
+  </header>
+
+  <div id="painel">
+    <div id="timer-box">
+      <h3>⏱ Tempo</h3>
+      <div id="timer-display">00:50</div>
+    </div>
+    <div id="aviso-vez"></div>
+    <div id="placar-box">
+      <h3>🏆 Acertos</h3>
+      <div id="pts">0</div>
+    </div>
+  </div>
+
+  <div id="game-area">
+    <div id="pergunta"></div>
+
+    <div id="status">
+      <svg id="cena-svg" viewBox="0 36 340 124" xmlns="http://www.w3.org/2000/svg">
+      <!-- Chão -->
+      <line x1="0" y1="148" x2="340" y2="148" stroke="#a5d6a7" stroke-width="3"/>
+
+      <!-- BONECO fixo em x=90 -->
+      <g transform="translate(90,148)">
+        <line x1="0" y1="0"   x2="-14" y2="-30" stroke="#5d4037" stroke-width="4" stroke-linecap="round"/>
+        <line x1="0" y1="0"   x2="14"  y2="-30" stroke="#5d4037" stroke-width="4" stroke-linecap="round"/>
+        <line x1="0" y1="-30" x2="0"   y2="-75" stroke="#5d4037" stroke-width="4" stroke-linecap="round"/>
+        <line x1="0" y1="-55" x2="-22" y2="-42" stroke="#5d4037" stroke-width="4" stroke-linecap="round"/>
+        <line x1="0" y1="-55" x2="22"  y2="-42" stroke="#5d4037" stroke-width="4" stroke-linecap="round"/>
+        <!-- cabeça -->
+        <circle cx="0" cy="-88" r="13" fill="#ffe082" stroke="#f57f17" stroke-width="2.5"/>
+        <!-- olhos normais -->
+        <circle id="olho-esq" cx="-5" cy="-90" r="2" fill="#333"/>
+        <circle id="olho-dir" cx="5"  cy="-90" r="2" fill="#333"/>
+        <!-- sobrancelhas -->
+        <line id="sob-esq" x1="-8" y1="-97" x2="-2" y2="-95" stroke="#795548" stroke-width="2" stroke-linecap="round"/>
+        <line id="sob-dir" x1="2"  y1="-95" x2="8"  y2="-97" stroke="#795548" stroke-width="2" stroke-linecap="round"/>
+        <!-- bocas -->
+        <path id="boca-sorriso" d="M -6 -82 Q 0 -78 6 -82" stroke="#795548" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <line id="boca-reta"    x1="-5" y1="-82" x2="5" y2="-82" stroke="#795548" stroke-width="2" stroke-linecap="round" style="display:none"/>
+        <path id="boca-triste"  d="M -6 -80 Q 0 -85 6 -80" stroke="#795548" stroke-width="2" fill="none" stroke-linecap="round" style="display:none"/>
+        <ellipse id="boca-susto" cx="0" cy="-81" rx="5" ry="4" fill="#795548" style="display:none"/>
+        <!-- olhos X no erro 6 -->
+        <g id="olhos-x" style="display:none">
+          <line x1="-7" y1="-93" x2="-3" y2="-89" stroke="#c62828" stroke-width="2"/>
+          <line x1="-3" y1="-93" x2="-7" y2="-89" stroke="#c62828" stroke-width="2"/>
+          <line x1="3"  y1="-93" x2="7"  y2="-89" stroke="#c62828" stroke-width="2"/>
+          <line x1="7"  y1="-93" x2="3"  y2="-89" stroke="#c62828" stroke-width="2"/>
+        </g>
+        <!-- gosma do caracol -->
+        <g id="splat-gosma" style="display:none">
+          <ellipse cx="-4" cy="-92" rx="6" ry="4" fill="#9ccc65" opacity="0.9"/>
+          <ellipse cx="7" cy="-85" rx="5" ry="4" fill="#9ccc65" opacity="0.9"/>
+          <ellipse cx="-1" cy="-100" rx="4" ry="3" fill="#9ccc65" opacity="0.9"/>
+          <ellipse cx="9" cy="-95" rx="3.5" ry="3" fill="#9ccc65" opacity="0.9"/>
+          <ellipse cx="-9" cy="-83" rx="3.5" ry="3" fill="#9ccc65" opacity="0.9"/>
+          <path d="M -6 -80 L -6 -70 M 7 -82 L 7 -72" stroke="#9ccc65" stroke-width="3" stroke-linecap="round"/>
+        </g>
+        <!-- picadas -->
+        <g id="splat-creme" style="display:none">
+          <circle cx="-6" cy="-92" r="3" fill="#e53935" opacity="0.9"/>
+          <circle cx="7"  cy="-85" r="3.5" fill="#e53935" opacity="0.9"/>
+          <circle cx="-2" cy="-100" r="2.5" fill="#e53935" opacity="0.9"/>
+          <circle cx="10" cy="-95" r="2.5" fill="#e53935" opacity="0.9"/>
+          <circle cx="-9" cy="-83" r="2.5" fill="#e53935" opacity="0.9"/>
+        </g>
+      </g>
+
+      <!-- MOSQUITO — posicionado inteiramente via JS (sem transform no HTML) -->
+      <g id="torta-g">
+        <g id="mosquito-svg">
+        <!-- MOSQUITO (voa de frente para o boneco, à esquerda) -->
+        <g id="mosquito-asas">
+          <ellipse cx="4"  cy="-10" rx="14" ry="6" fill="#b3e5fc" opacity="0.7" stroke="#4fc3f7" stroke-width="1" transform="rotate(-25,4,-10)"/>
+          <ellipse cx="10" cy="-9"  rx="12" ry="5" fill="#b3e5fc" opacity="0.6" stroke="#4fc3f7" stroke-width="1" transform="rotate(-5,10,-9)"/>
+        </g>
+        <!-- pernas -->
+        <path d="M -4 6 L -10 18 M 2 7 L 0 20 M 8 6 L 12 18" stroke="#212121" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <!-- abdômen listrado -->
+        <ellipse cx="16" cy="2" rx="14" ry="5" fill="#37474f" stroke="#212121" stroke-width="1"/>
+        <line x1="12" y1="-2" x2="12" y2="6" stroke="#fff" stroke-width="1.5"/>
+        <line x1="18" y1="-3" x2="18" y2="7" stroke="#fff" stroke-width="1.5"/>
+        <line x1="24" y1="-2" x2="24" y2="6" stroke="#fff" stroke-width="1.5"/>
+        <!-- tórax e cabeça -->
+        <ellipse cx="-1" cy="1" rx="8" ry="6" fill="#455a64" stroke="#212121" stroke-width="1"/>
+        <circle cx="-11" cy="1" r="4.5" fill="#37474f" stroke="#212121" stroke-width="1"/>
+        <circle cx="-12.5" cy="-0.5" r="1.6" fill="#e53935"/>
+        <!-- probóscide -->
+        <line x1="-15" y1="2" x2="-27" y2="5" stroke="#212121" stroke-width="1.6" stroke-linecap="round"/>
+        <!-- antena -->
+        <path d="M -12 -3 Q -16 -9 -20 -8" stroke="#212121" stroke-width="1" fill="none"/>
+      </g>
+        <!-- CARACOL (Biomphalaria) — rasteja de frente para o boneco -->
+        <g id="caracol-svg" style="display:none">
+          <ellipse cx="-4" cy="8" rx="22" ry="5" fill="#a1887f" stroke="#6d4c41" stroke-width="1"/>
+          <ellipse cx="-22" cy="4" rx="7" ry="6" fill="#a1887f" stroke="#6d4c41" stroke-width="1"/>
+          <line x1="-26" y1="0" x2="-30" y2="-10" stroke="#6d4c41" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="-21" y1="-1" x2="-22" y2="-11" stroke="#6d4c41" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="-30" cy="-11" r="2" fill="#212121"/>
+          <circle cx="-22" cy="-12" r="2" fill="#212121"/>
+          <circle cx="-25" cy="3" r="1.2" fill="#212121"/>
+          <circle cx="4" cy="-2" r="13" fill="#ffb74d" stroke="#e65100" stroke-width="1.5"/>
+          <path d="M 4 -2 m -2 0 a 2 2 0 1 1 4 0 a 5 5 0 1 1 -8 0 a 8 8 0 1 1 13 0" fill="none" stroke="#e65100" stroke-width="1.5" stroke-linecap="round"/>
+        </g>
+      </g>
+    </svg>
+      <div id="vidas"></div>
+    </div>
+
+    <div id="palavra"></div>
+    <div id="mensagem"></div>
+    <div class="teclado" id="teclado"></div>
+
+    <div id="controles">
+      <button id="btn-nova" onclick="proximaRodada()">➡️ Próxima Pergunta</button>
+      <button id="btn-reset" onclick="resetarJogo()">⚡ Reiniciar</button>
+    </div>
+  </div>
+
+  <footer>#Criado por Jônatas Sousa - Fabrício Crispim - Letícia Santos# · Orientado:Prof Rangel Lucena</footer>
+</div>
+
+<script>
+// ── PERGUNTAS ──
+const perguntas = [
+  { pergunta: "A qual filo pertence o mosquito Aedes aegypti?", resposta: "Arthropoda", tipo: "aedes" },
+  { pergunta: "Qual fase do desenvolvimento do Aedes aegypti ocorre entre a larva e o adulto?", resposta: "Pupa", tipo: "aedes" },
+  { pergunta: "Qual substância compõe principalmente o exoesqueleto dos artrópodes?", resposta: "Quitina", tipo: "aedes" },
+  { pergunta: "Os ovos do Aedes aegypti são depositados nas paredes internas de qual tipo de objeto que pode receber água?", resposta: "Recipientes", tipo: "aedes" },
+  { pergunta: "Qual tipo de vetor é o Aedes aegypti, já que os vírus se multiplicam ou se desenvolvem no mosquito antes da transmissão?", resposta: "Biológico", tipo: "aedes" },
+  { pergunta: "Qual doença é transmitida pelo Aedes aegypti?", resposta: "Dengue", tipo: "aedes" },
+  { pergunta: "Qual ação deve ser feita com os reservatórios de água para impedir o desenvolvimento do Aedes aegypti?", resposta: "Vedar", tipo: "aedes" },
+  { pergunta: "Para transmitir o vírus, o Aedes aegypti precisa estar em qual condição?", resposta: "Infectado", tipo: "aedes" },
+  { pergunta: "Qual conduta deve ser evitada diante de suspeita de dengue?", resposta: "Automedicação", tipo: "aedes" },
+  { pergunta: "A qual filo pertencem os caramujos do gênero Biomphalaria?", resposta: "Mollusca", tipo: "caramujo" },
+  { pergunta: "Qual é o tipo de hospedeiro representado pelo Biomphalaria no ciclo do Schistosoma mansoni?", resposta: "Intermediário", tipo: "caramujo" },
+  { pergunta: "Qual é o gênero do verme causador da esquistossomose mansoni?", resposta: "Schistosoma", tipo: "caramujo" },
+  { pergunta: "Quais larvas do Schistosoma mansoni, liberadas por caramujos infectados, penetram na pele humana?", resposta: "Cercárias", tipo: "caramujo" },
+  { pergunta: "Qual larva do Schistosoma mansoni infecta o caramujo Biomphalaria?", resposta: "Miracídio", tipo: "caramujo" },
+  { pergunta: "Qual termo descreve o Biomphalaria, que possui órgãos reprodutores masculinos e femininos no mesmo indivíduo?", resposta: "Hermafrodita", tipo: "caramujo" },
+  { pergunta: "Qual tipo de desenvolvimento o Biomphalaria apresenta, no qual dos ovos emergem pequenos caramujos semelhantes aos adultos?", resposta: "Direto", tipo: "caramujo" },
+  { pergunta: "Qual medida coletiva é fundamental para prevenir a esquistossomose?", resposta: "Saneamento", tipo: "caramujo" },
+  { pergunta: "Qual organismo é um artrópode vetor de vírus?", resposta: "Aedes", tipo: "aedes" },
+  { pergunta: "A retirada isolada de caramujos não elimina qual fonte de contaminação da água por ovos do parasita?", resposta: "Fezes", tipo: "caramujo" }
+];
+
+// ── ACENTOS ──
+const equivalencias = {
+  'A': ['A','Á','Â','Ã','À','Ä','a','á','â','ã','à','ä'],
+  'E': ['E','É','Ê','È','Ë','e','é','ê','è','ë'],
+  'I': ['I','Í','Î','Ì','Ï','i','í','î','ì','ï'],
+  'O': ['O','Ó','Ô','Õ','Ò','Ö','o','ó','ô','õ','ò','ö'],
+  'U': ['U','Ú','Û','Ù','Ü','u','ú','û','ù','ü'],
+  'C': ['C','Ç','c','ç'],
+  'N': ['N','Ñ','n','ñ'],
+};
+function letraMatch(l) { return equivalencias[l] || [l, l.toLowerCase()]; }
+function charBateu(c, l) { return letraMatch(l).includes(c); }
+
+// ── POSIÇÕES DA TORTA no SVG (viewBox 340x160, boneco em translate(90,148)) ──
+// TX_INICIO: mosquito começa longe à direita
+// TX_CARA / TY_CARA: posição de impacto alinhada com a cabeça do boneco
+const TX_INICIO  = 310;
+const TY_MOSQUITO = 100;  // mosquito voa no ar
+const TY_CARACOL  = 135;  // caracol rasteja no chão
+let tipoAtual = "aedes";
+let tyAtual = TY_MOSQUITO;
+const TX_CARA    = 93;
+const TY_CARA    = 62;
+const MAX_ERROS  = 6;
+const TEMPO_TOTAL = 50;
+
+// ── ESTADO ──
+let palavraSecreta = "";
+let exibicao      = [];
+let erros         = 0;
+let jogoAtivo     = false;
+let jogoIniciado  = false;
+let acertos       = 0;
+let fila          = [];   // perguntas embaralhadas (sem repetição)
+let indice        = 0;    // quantas já foram sorteadas
+let autoAvanco    = null; // timeout do avanço automático
+let timerInterval = null;
+let timerSegundos = TEMPO_TOTAL;
+let timerRodando  = false;
+
+// ────────────────────────────────────────────────────────────
+// CORREÇÃO DO BUG DE ANIMAÇÃO:
+// O problema era que, ao iniciar nova rodada, o código definia
+// style.transition="none" e style.transform ao mesmo tempo mas
+// o browser ainda processava a transição do frame anterior.
+// A solução é usar dois requestAnimationFrame() aninhados para
+// garantir que o browser aplique o reposicionamento SEM transição
+// antes de reativar a transition para os próximos erros.
+// ────────────────────────────────────────────────────────────
+function resetarMosquito() {
+  const g = document.getElementById("torta-g");
+  tyAtual = tipoAtual === "caramujo" ? TY_CARACOL : TY_MOSQUITO;
+  document.getElementById("mosquito-svg").style.display = tipoAtual === "caramujo" ? "none" : "";
+  document.getElementById("caracol-svg").style.display  = tipoAtual === "caramujo" ? "" : "none";
+  // Passo 1: desliga transition E reposiciona instantaneamente
+  g.style.transition = "none";
+  g.style.opacity    = "1";
+  g.style.transform  = `translate(${TX_INICIO}px, ${tyAtual}px)`;
+  // Passo 2: reativa transition somente depois que o browser
+  // tiver "commitado" a nova posição (dois frames de distância)
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      g.style.transition = "transform 0.55s ease";
+    });
+  });
+}
+
+function resetarRosto() {
+  document.getElementById("boca-sorriso").style.display = "block";
+  document.getElementById("boca-sorriso").setAttribute("d", "M -6 -82 Q 0 -78 6 -82");
+  document.getElementById("boca-reta").style.display   = "none";
+  document.getElementById("boca-triste").style.display = "none";
+  document.getElementById("boca-triste").setAttribute("d", "M -6 -80 Q 0 -85 6 -80");
+  document.getElementById("boca-susto").style.display  = "none";
+  document.getElementById("olho-esq").style.display    = "";
+  document.getElementById("olho-dir").style.display    = "";
+  document.getElementById("olhos-x").style.display     = "none";
+  document.getElementById("splat-creme").style.display = "none";
+  document.getElementById("splat-gosma").style.display = "none";
+  const sE = document.getElementById("sob-esq");
+  const sD = document.getElementById("sob-dir");
+  sE.setAttribute("x1","-8"); sE.setAttribute("y1","-97"); sE.setAttribute("x2","-2"); sE.setAttribute("y2","-95");
+  sD.setAttribute("x1","2");  sD.setAttribute("y1","-95"); sD.setAttribute("x2","8");  sD.setAttribute("y2","-97");
+}
+
+// ── OVERLAY ──
+function comecarJogo() {
+  document.getElementById("overlay-inicio").style.display = "none";
+  jogoIniciado = true;
+  resetarJogo();
+}
+
+// ── PALAVRA EM CASINHAS ──
+function renderPalavra() {
+  const el = document.getElementById("palavra");
+  el.innerHTML = "";
+  exibicao.forEach(c => {
+    const sp = document.createElement("span");
+    sp.className = "slot" + (c === " " ? " espaco" : "");
+    sp.textContent = (c === "_" || c === " ") ? "" : c;
+    el.appendChild(sp);
+  });
+}
+
+// ── RODADA ──
+function embaralhar(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function iniciarRodada() {
+  clearTimeout(autoAvanco);
+  pararTimer();
+  resetarTimer();
+  if (indice >= fila.length) { resetarMosquito(); resetarRosto(); mostrarFim(); return; }
+
+  const sorteio = fila[indice];
+  indice++;
+  tipoAtual = sorteio.tipo;
+  resetarMosquito();
+  resetarRosto();
+  document.getElementById("pergunta").innerText = sorteio.pergunta;
+  palavraSecreta = sorteio.resposta;
+  exibicao = palavraSecreta.split("").map(c => c === " " ? " " : "_");
+  renderPalavra();
+
+  erros = 0;
+  jogoAtivo = true;
+
+  atualizarVidas();
+  document.getElementById("mensagem").innerText = "";
+  const btn = document.getElementById("btn-nova");
+  btn.innerText = indice >= fila.length ? "🏁 Ver resultado" : "➡️ Próxima Pergunta";
+  btn.onclick = proximaRodada;
+  criarTeclado();
+  atualizarPlacar();
+  atualizarAvisoVez();
+  startTimer(); // contagem automática
+}
+
+function proximaRodada() { iniciarRodada(); }
+
+function mostrarFim() {
+  jogoAtivo = false;
+  document.getElementById("pergunta").innerText = "🏁 Fim de jogo!";
+  document.getElementById("palavra").innerText = "";
+  document.getElementById("teclado").innerHTML = "";
+  document.getElementById("aviso-vez").innerText = "";
+  document.getElementById("mensagem").innerHTML =
+    `<span style="color:#2e7d32">Você acertou ${acertos} de ${fila.length} perguntas!</span>`;
+  const btn = document.getElementById("btn-nova");
+  btn.innerText = "🔄 Jogar novamente";
+  btn.onclick = resetarJogo;
+}
+
+// ── TECLADO ──
+function criarTeclado() {
+  const teclado = document.getElementById("teclado");
+  teclado.innerHTML = "";
+  for (let letra of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+    const b = document.createElement("button");
+    b.innerText = letra;
+    b.onclick = () => verificarLetra(letra, b);
+    teclado.appendChild(b);
+  }
+}
+
+function verificarLetra(letra, botao) {
+  if (!jogoAtivo) return;
+  botao.disabled = true;
+
+  const acertou = palavraSecreta.split("").some((c, i) => exibicao[i] === "_" && charBateu(c, letra));
+
+  if (acertou) {
+    for (let i = 0; i < palavraSecreta.length; i++) {
+      if (charBateu(palavraSecreta[i], letra)) exibicao[i] = palavraSecreta[i];
+    }
+    renderPalavra();
+    if (!exibicao.includes("_")) {
+      pararTimer();
+      jogoAtivo = false;
+      acertos++;
+      atualizarPlacar();
+      document.getElementById("mensagem").innerHTML =
+        `🎉 <span style="color:#2e7d32">Você acertou! +1 ponto</span>`;
+      desativarTeclado();
+    }
+  } else {
+    erros++;
+    moverMosquito();
+    atualizarExpressao();
+    atualizarVidas();
+    if (erros >= MAX_ERROS) {
+      pararTimer();
+      jogoAtivo = false;
+      document.getElementById("mensagem").innerHTML =
+        `${tipoAtual === "caramujo" ? "🐌" : "🦟"} <span style="color:#c62828">${tipoAtual === "caramujo" ? "GOSMA" : "PICADA"}! Você errou! Resposta: <strong>${palavraSecreta}</strong></span>`;
+      desativarTeclado();
+    }
+  }
+}
+
+// ── MOVIMENTO DA TORTA (chamado a cada erro) ──
+function moverMosquito() {
+  const g = document.getElementById("torta-g");
+  // Cada erro move o mosquito 1/6 do caminho total
+  const passo = (TX_INICIO - TX_CARA) / MAX_ERROS;
+  const tx    = TX_INICIO - erros * passo;
+
+  if (erros < MAX_ERROS) {
+    // Deslizamento suave horizontal
+    g.style.transform = `translate(${tx}px, ${tyAtual}px)`;
+  } else {
+    // Erro 6: voa diretamente na cara com rotação
+    g.style.transition = "transform 0.42s cubic-bezier(.36,.07,.19,.97)";
+    g.style.transform  = `translate(${TX_CARA}px, ${TY_CARA}px) rotate(-18deg)`;
+    // Após o impacto: mosquito some e aparecem as picadas
+    setTimeout(() => {
+      g.style.transition = "opacity 0.15s";
+      g.style.opacity    = "0";
+      document.getElementById(tipoAtual === "caramujo" ? "splat-gosma" : "splat-creme").style.display = "block";
+    }, 400);
+  }
+}
+
+// ── EXPRESSÃO DO ROSTO (0-6 erros) ──
+function atualizarExpressao() {
+  const sorriso = document.getElementById("boca-sorriso");
+  const reta    = document.getElementById("boca-reta");
+  const triste  = document.getElementById("boca-triste");
+  const susto   = document.getElementById("boca-susto");
+  const olhosX  = document.getElementById("olhos-x");
+  const sE      = document.getElementById("sob-esq");
+  const sD      = document.getElementById("sob-dir");
+
+  [sorriso, reta, triste, susto, olhosX].forEach(e => e.style.display = "none");
+
+  if (erros <= 2) {
+    reta.style.display = "block";
+    sE.setAttribute("x1","-8"); sE.setAttribute("y1","-95"); sE.setAttribute("x2","-2"); sE.setAttribute("y2","-97");
+    sD.setAttribute("x1","2");  sD.setAttribute("y1","-97"); sD.setAttribute("x2","8");  sD.setAttribute("y2","-95");
+  } else if (erros <= 4) {
+    triste.style.display = "block";
+    sE.setAttribute("x1","-8"); sE.setAttribute("y1","-94"); sE.setAttribute("x2","-2"); sE.setAttribute("y2","-98");
+    sD.setAttribute("x1","2");  sD.setAttribute("y1","-98"); sD.setAttribute("x2","8");  sD.setAttribute("y2","-94");
+  } else if (erros === 5) {
+    triste.style.display = "block";
+    triste.setAttribute("d", "M -7 -79 Q 0 -86 7 -79");
+    sE.setAttribute("x1","-8"); sE.setAttribute("y1","-93"); sE.setAttribute("x2","-2"); sE.setAttribute("y2","-99");
+    sD.setAttribute("x1","2");  sD.setAttribute("y1","-99"); sD.setAttribute("x2","8");  sD.setAttribute("y2","-93");
+  } else {
+    // Erro 6: olhos X + boca de susto
+    susto.style.display  = "block";
+    olhosX.style.display = "block";
+    document.getElementById("olho-esq").style.display = "none";
+    document.getElementById("olho-dir").style.display  = "none";
+  }
+}
+
+function atualizarVidas() {
+  document.getElementById("vidas").innerText =
+    "❤️".repeat(MAX_ERROS - erros) + "🖤".repeat(erros);
+}
+
+function desativarTeclado() {
+  document.querySelectorAll(".teclado button").forEach(b => b.disabled = true);
+}
+
+// ── PLACAR ──
+function atualizarPlacar() {
+  document.getElementById("pts").innerText = acertos;
+}
+
+function atualizarAvisoVez() {
+  const aviso = document.getElementById("aviso-vez");
+  aviso.innerText   = `🎮 Pergunta ${indice} de ${fila.length}`;
+  aviso.style.color = "#1a237e";
+}
+
+// ── TEMPORIZADOR ──
+function startTimer() {
+  if (timerRodando) return;
+  timerRodando = true;
+  timerInterval = setInterval(() => {
+    timerSegundos--;
+    exibirTimer();
+    if (timerSegundos <= 10) document.getElementById("timer-display").classList.add("danger");
+    if (timerSegundos <= 0) {
+      pararTimer();
+      if (jogoAtivo) {
+        jogoAtivo = false;
+        desativarTeclado();
+        document.getElementById("mensagem").innerHTML =
+          `⏰ <span style="color:#e65100">Tempo esgotado! Resposta: <strong>${palavraSecreta}</strong>. Próxima pergunta…</span>`;
+        // passa sozinho para a próxima pergunta
+        autoAvanco = setTimeout(iniciarRodada, 3000);
+      }
+    }
+  }, 1000);
+}
+
+function pararTimer() {
+  clearInterval(timerInterval);
+  timerRodando = false;
+  document.getElementById("timer-display").classList.remove("danger");
+}
+
+function resetarTimer() {
+  pararTimer();
+  timerSegundos = TEMPO_TOTAL;
+  exibirTimer();
+}
+
+function exibirTimer() {
+  const m = Math.floor(timerSegundos / 60).toString().padStart(2, "0");
+  const s = (timerSegundos % 60).toString().padStart(2, "0");
+  document.getElementById("timer-display").innerText = `${m}:${s}`;
+}
+
+// ── REINICIAR ──
+function resetarJogo() {
+  clearTimeout(autoAvanco);
+  acertos = 0;
+  fila = embaralhar([...perguntas]);
+  indice = 0;
+  iniciarRodada();
+}
+</script>
+</body>
+</html>
